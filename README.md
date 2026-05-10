@@ -1,189 +1,320 @@
-# DJI SRT File Parser
+# uav_tools
 
-A robust Python module for parsing DJI SRT (SubRip subtitle) files into structured pandas DataFrames. This refactored version implements research software engineering best practices for maintainability, testability, and extensibility.
+Python utilities for DJI UAV mission planning, data management, and project setup.
+Developed for ecological field work with the DJI Mavic 3M (multispectral) and
+DJI Air 3S.
 
-## Features
+```
+mission_planning/    — pre-flight calculations
+data_management/     — post-flight data processing and format conversion
+project_management/  — project directory setup
+tests/               — test suite
+```
 
-- **Comprehensive validation**: Robust file validation with descriptive error messages
-- **Modular design**: Separated concerns with focused, single-responsibility functions
-- **Type safety**: Full type hints for better code clarity and IDE support
-- **Configurable parsing**: Easily customizable patterns and output formats
-- **Extensive testing**: Comprehensive test suite with >95% code coverage
-- **Logging support**: Structured logging for debugging and monitoring
-- **Error handling**: Custom exceptions with clear error messages
-- **CLI interface**: Command-line tool with helpful options
+---
 
-## Installation
-
-1. Clone or download the repository
-2. Install dependencies:
+## Requirements
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## Usage
+Core dependencies: `pandas`, `numpy`, `opencv-python`, `geopandas`, `geojson`,
+`shapely`. `ffprobe` (part of ffmpeg) required for `video_file_utils.py`.
 
-### Command Line Interface
+Python 3.8+
 
-```bash
-# Basic usage
-python import_dji_srt_file_refactored.py flight_data.srt
+---
 
-# Save to CSV file
-python import_dji_srt_file_refactored.py flight_data.srt --output parsed_data.csv
+## Mission Planning
 
-# Enable verbose logging
-python import_dji_srt_file_refactored.py flight_data.srt --output parsed_data.csv --verbose
-```
-
-### Python API
-
-```python
-from import_dji_srt_file_refactored import parse_srt_records
-
-# Parse SRT file to DataFrame
-df = parse_srt_records('flight_data.srt')
-
-# Display results
-print(df.head())
-print(f"Parsed {len(df)} records")
-```
-
-### Custom Configuration
-
-```python
-from import_dji_srt_file_refactored import parse_srt_records, SRTConfig
-
-# Create custom configuration
-config = SRTConfig()
-
-# Modify patterns if needed (for different SRT formats)
-config.PATTERNS['custom_field'] = r'\[custom: ([^\]]+)\]'
-
-# Parse with custom config
-df = parse_srt_records('flight_data.srt', config=config)
-```
-
-## Output Format
-
-The parser extracts the following fields from DJI SRT files:
-
-| Column | Type | Description |
-|--------|------|-------------|
-| subtitle_num | int | Subtitle sequence number |
-| start_time | str | Start timestamp (HH:MM:SS,mmm) |
-| end_time | str | End timestamp (HH:MM:SS,mmm) |
-| frame_cnt | int | Frame count |
-| diff_time_ms | int | Time difference in milliseconds |
-| timestamp | datetime | Recording timestamp |
-| iso | int | ISO sensitivity |
-| shutter | str | Shutter speed |
-| fnum | float | F-number (aperture) |
-| ev | float | Exposure value |
-| color_mode | str | Color mode |
-| focal_length | float | Focal length in mm |
-| latitude | float | GPS latitude |
-| longitude | float | GPS longitude |
-| relative_altitude | float | Relative altitude in meters |
-| absolute_altitude | float | Absolute altitude in meters |
-| ct | int | Color temperature |
-
-## Testing
-
-Run the comprehensive test suite:
+### `mission_planning/calc_drone_gsd.py`
+Calculate ground sample distance (GSD) from flight altitude (AGL), or the
+altitude needed to achieve a target GSD. Supports Mavic 3M RGB and Multispectral
+cameras, and DJI Air 2S. Camera specs are hardcoded from DJI documentation.
 
 ```bash
-# Run all tests
-python -m pytest test_import_dji_srt_file.py -v
+# GSD at 60m AGL for Mavic 3M multispectral
+python calc_drone_gsd.py --drone DJI_Mavic_3M --image_type Multispectral --agl 60
 
-# Run with coverage report
-python -m pytest test_import_dji_srt_file.py --cov=import_dji_srt_file_refactored --cov-report=html
+# Altitude needed for 3cm/px GSD (RGB)
+python calc_drone_gsd.py --drone DJI_Mavic_3M --image_type RGB --gsd 3.0
 
-# Run specific test class
-python -m pytest test_import_dji_srt_file.py::TestSRTValidation -v
+# Show all outputs
+python calc_drone_gsd.py --drone DJI_Mavic_3M --image_type Multispectral --agl 60 --gsd 3.0 --debug
 ```
 
-## Architecture
+Options: `--drone` (DJI_Mavic_3M, DJI_Air_2S), `--image_type` (RGB, Multispectral,
+Wide, Tele), `--agl` (meters), `--gsd` (cm/px), `--debug`
 
-The refactored solution follows these design principles:
+---
 
-### Modular Functions
-- `validate_srt_file()`: File validation with comprehensive checks
-- `split_srt_content()`: Content splitting into subtitle blocks
-- `clean_html_content()`: HTML tag removal
-- `extract_parameters()`: Parameter extraction using configurable patterns
-- `parse_subtitle_block()`: Single block parsing logic
-- `create_dataframe()`: DataFrame creation and column management
+### `mission_planning/perceived_altitude.py`
+Calculate perceived (density) altitude from true altitude, barometric pressure,
+and temperature. Useful for understanding drone performance at elevation or in
+non-standard atmospheric conditions. Currently a module (functions only, no CLI).
 
-### Configuration Management
-- `SRTConfig` dataclass for centralized configuration
-- Regex patterns dictionary for easy customization
-- Type converters for automatic data type handling
-- Output column definitions for consistent formatting
+```python
+from perceived_altitude import alt_perceived
+density_alt = alt_perceived(altitude=500, pressure=980, temperature=25)
+```
 
-### Error Handling
-- Custom exception classes for specific error types
-- Descriptive error messages for debugging
-- Graceful handling of malformed data
-- Comprehensive logging throughout the pipeline
+---
 
-### Type Safety
-- Full type hints for all function parameters and returns
-- Union types for flexible input handling
-- Optional types for nullable values
-- Generic types for container types
+## Data Management
 
-## Comparison with Original
+### `data_management/mrk_to_geodata.py`
+Convert a DJI Mavic 3M `Timestamp.MRK` file to KML, GeoJSON, or Shapefile.
+The MRK file contains PPK timestamp and position data for each image capture.
+Output includes camera location points and a flight path line.
 
-### Improvements
+```bash
+# Default output: KML
+python mrk_to_geodata.py mission/DJI_Timestamp.MRK output/flight_path.kml
 
-1. **Maintainability**: Reduced function complexity from 130+ lines to focused functions
-2. **Testability**: Comprehensive test suite with 95%+ coverage
-3. **Readability**: Clear separation of concerns and descriptive naming
-4. **Extensibility**: Configuration-driven approach for easy customization
-5. **Reliability**: Robust error handling and validation
-6. **Performance**: Optimized regex compilation and efficient parsing
-7. **Documentation**: Complete docstrings and type hints
+# GeoJSON
+python mrk_to_geodata.py mission/DJI_Timestamp.MRK output/flight_path.geojson --format geojson
 
-### Key Fixes
+# Shapefile
+python mrk_to_geodata.py mission/DJI_Timestamp.MRK output/flight_path --format shapefile
+```
 
-- **Altitude Parsing**: Fixed regex pattern to handle combined altitude format `[rel_alt: X.XXX abs_alt: Y.YYY]`
-- **Error Recovery**: Graceful handling of malformed blocks
-- **Type Safety**: Proper type conversion with error handling
-- **Memory Efficiency**: Streaming processing for large files
+---
 
-## Contributing
+### `data_management/flag_suspect_images.py`
+Flag potentially problematic images in a Mavic 3M mission folder before
+photogrammetry processing. Three independent checks:
 
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality
-4. Ensure all tests pass
-5. Submit a pull request
+1. **Trajectory outliers** — perpendicular deviation from local flight path
+   (MRK-based); z-score threshold
+2. **Sharpness** — Laplacian variance on RGB images; flags motion blur or
+   focus issues
+3. **Band completeness** — confirms all four multispectral bands (G, R, RE, NIR)
+   are present for each image index
 
-## Requirements
+```bash
+# Report only
+python flag_suspect_images.py mission/ --report
 
-- Python 3.7+
-- pandas >= 1.5.0
-- numpy >= 1.21.0
-- pytest >= 7.0.0 (for testing)
+# Quarantine flagged images (moves to mission/quarantine/)
+python flag_suspect_images.py mission/ --quarantine
+
+# Adjust thresholds
+python flag_suspect_images.py mission/ --trajectory-zscore 2.5 --sharpness-threshold 50
+```
+
+Options: `--sharpness-threshold` (default 100), `--trajectory-zscore` (default 3.0),
+`--quarantine`, `--report`
+
+---
+
+### `data_management/split_mission_images.py`
+Split a raw Mavic 3M mission folder into separate RGB and multispectral working
+copies for independent WebODM processing. All metadata files are copied to both.
+The original folder is left untouched as an archive.
+
+Output directories are created as siblings of the input folder:
+- `<mission>_RGB/` — `_W.JPG` files + all metadata
+- `<mission>_MS/` — `.TIF` band files + all metadata
+
+```bash
+# Preview without copying
+python split_mission_images.py /path/to/mission --dry-run
+
+# Run
+python split_mission_images.py /path/to/mission
+```
+
+Errors if output directories already exist — protects against overwriting a
+working copy already in use.
+
+---
+
+### `data_management/geojson_to_shapefile.py`
+Convert a GeoJSON file of camera locations (from DJI flight logs or MRK export)
+to ESRI Shapefiles — a camera location point shapefile and a flight path line
+shapefile. Reprojects to a specified EPSG coordinate system.
+
+Currently a module with a hardcoded `__main__` block. Edit the paths and EPSG
+at the bottom of the file before running.
+
+```bash
+python geojson_to_shapefile.py
+```
+
+---
+
+### `data_management/import_dji_srt_file.py`
+Parse DJI SRT (SubRip subtitle) files into structured pandas DataFrames. DJI
+video files embed flight telemetry — GPS position, altitude, ISO, shutter speed,
+focal length, and more — as SRT subtitle tracks. This script extracts that
+telemetry into a clean tabular format.
+
+Supports single file, directory (combined output), or directory batch
+(individual CSV per file) modes.
+
+```bash
+# Single file → CSV
+python import_dji_srt_file.py flight.srt --output flight.csv
+
+# All SRT files in directory → combined CSV
+python import_dji_srt_file.py /path/to/srt/files --output combined.csv
+
+# All SRT files → one CSV per file
+python import_dji_srt_file.py /path/to/srt/files --batch --output-dir /path/to/csvs
+
+# Recursive directory search
+python import_dji_srt_file.py /path/to/srt/files --recursive --output all.csv
+
+# Verbose logging
+python import_dji_srt_file.py flight.srt --log-level INFO
+```
+
+**Output columns:** `subtitle_num`, `start_time`, `end_time`, `frame_cnt`,
+`diff_time_ms`, `timestamp`, `iso`, `shutter`, `fnum`, `ev`, `color_mode`,
+`focal_length`, `latitude`, `longitude`, `relative_altitude`, `absolute_altitude`, `ct`
+
+Python API:
+```python
+from import_dji_srt_file import parse_srt_records
+df = parse_srt_records('flight.srt')
+```
+
+Tests: `python -m pytest tests/test_import_dji_srt_file.py -v`
+
+---
+
+### `data_management/video_frame_extractor.py`
+Extract frames from DJI video files (MP4 and other formats) and save as JPEG
+images. Two modes:
+
+1. **JSON config mode** — specify exact frame numbers and output directory via
+   a JSON config file (see `frame_extraction_config.json` for format)
+2. **Skip interval mode** — extract every Nth frame
+
+```bash
+# Extract specific frames using JSON config
+python video_frame_extractor.py video.mp4 --json frame_extraction_config.json
+
+# Extract every 30th frame
+python video_frame_extractor.py video.mp4 --skip 29
+
+# Extract every frame
+python video_frame_extractor.py video.mp4 --skip 0
+```
+
+See `VIDEO_FRAME_EXTRACTOR_README.md` for full documentation.
+
+---
+
+### `data_management/video_file_utils.py`
+Utility module for scanning, renaming, and logging video files from a media
+directory. Uses `ffprobe` to extract duration and creation date metadata.
+Generates standardized filenames (`YYYYMMDD_location_activity_camera_NNN.ext`)
+and builds a CSV log of all video files.
+
+Currently a module (no CLI). Edit configuration constants at the top of the
+file (`MEDIA_ROOT`, `LOG_CSV_PATH`, `CAMERA_NAME`) before importing or running.
+
+---
+
+## Project Management
+
+### `project_management/create_drone_project.py`
+Create directory structures for drone photogrammetry projects. Three modes:
+
+**One-off mission** (default) — self-contained dated project:
+```
+YYYYMMDD_site-name_mission-type/
+├── planning/  (checklists/, airspace/, flight_path/)
+├── field_notes/
+├── raw_data/
+├── working_data/         ← split_mission_images.py writes here
+├── webodm_output/        (orthophoto/, dsm/, dtm/, pointcloud/, model3d/)
+├── gis/
+├── deliverables/
+└── processing_notes.md
+```
+
+**Repeat monitoring site** (`--new-site`) — site-level structure with dated visits:
+```
+site-name_mission-type/
+├── planning/  (checklists/, airspace/, flight_path/)
+└── visits/
+    └── YYYYMMDD/   ← same subdirs as one-off, minus planning/
+```
+
+**Add visit** (`--add-visit`) — adds a new dated visit to an existing site.
+
+```bash
+# One-off mission (today's date)
+python create_drone_project.py rancho-mission-canyon ms-mapping
+
+# One-off mission (specific date)
+python create_drone_project.py rancho-mission-canyon ms-mapping --date 20260506
+
+# New repeat monitoring site
+python create_drone_project.py rancho-mission-canyon ms-mapping --new-site
+
+# Add a visit to an existing site
+python create_drone_project.py rancho-mission-canyon ms-mapping --add-visit
+
+# Any mode with a checklist file copied into planning/checklists/
+python create_drone_project.py rancho-mission-canyon ms-mapping --checklist ~/checklists/mavic3m.pdf
+
+# Specify output location
+python create_drone_project.py rancho-mission-canyon ms-mapping --project-path /path/to/projects
+```
+
+Mission types: `ms-mapping`, `rgb-mapping`, `ms-rgb-mapping`, `3d-model`, `survey`
+
+### `create_drone_project-backup.py`
+Sets up a standard directory structure for a new drone project, including
+subdirectories for raw footage, editing assets, SfM outputs, documentation,
+and deliverables. Creates a project proposal template in Markdown.
+
+Supports project types: Default, Vegetation Imagery, Drone Mapping, Drone
+Videography, Drone Photography.
+
+*Note: This is a backup/development copy. Work in progress — additional project
+types and dated directory naming (`YYYYMMDD_site-name_mission-type/`) to be added.*
+
+---
+
+## Typical Workflow
+
+```
+Pre-mission
+  └── mission_planning/calc_drone_gsd.py          # determine AGL for target GSD
+
+Post-mission (raw data in hand)
+  └── data_management/flag_suspect_images.py      # check for bad images before processing
+  └── data_management/mrk_to_geodata.py           # export flight path for QGIS / documentation
+  └── data_management/split_mission_images.py     # create RGB and MS working copies for WebODM
+
+Video data
+  └── data_management/import_dji_srt_file.py      # extract telemetry from video SRT files
+  └── data_management/video_frame_extractor.py    # pull frames for annotation or review
+```
+
+---
+
+## Notes
+
+- Scripts target DJI Mavic 3M file naming conventions (`_W.JPG`, `_G.TIF`,
+  `_R.TIF`, `_RE.TIF`, `_NIR.TIF`, `Timestamp.MRK`). Adaptations may be needed
+  for other DJI platforms.
+- `geojson_to_shapefile.py` and `video_file_utils.py` have hardcoded paths in
+  their `__main__` blocks — edit before running.
+- `perceived_altitude.py` is a utility module; no CLI yet.
+
+---
+
+---
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Changelog
-
-### v2.0.0 (Refactored)
-- Complete rewrite with modular architecture
-- Added comprehensive test suite
-- Implemented type hints throughout
-- Added configuration management
-- Fixed altitude parsing bug
-- Enhanced error handling and logging
-- Added CLI improvements
-
-### v1.0.0 (Original)
-- Basic SRT parsing functionality
-- Single monolithic function
-- Limited error handling
+RAIL Non-Commercial License — free for academic research, conservation science,
+ecological monitoring, wildlife management, environmental education, and use by
+non-profit organizations and government agencies. Commercial use requires a
+separate license. See [LICENSE.md](LICENSE.md) for full terms.
