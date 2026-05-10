@@ -1,8 +1,6 @@
-# uav_tools
+# uav_pytools
 
-Python utilities for DJI UAV mission planning, data management, and project setup.
-Developed for ecological field work with the DJI Mavic 3M (multispectral) and
-DJI Air 3S.
+Python utilities for DJI UAV mission planning, data management, and project setup. Developed for ecological field work with the DJI Mavic 3M (multispectral) and DJI Air 3S.
 
 ```
 mission_planning/    — pre-flight calculations
