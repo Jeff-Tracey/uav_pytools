@@ -6,18 +6,16 @@ Split a DJI Mavic 3M raw mission folder into separate RGB and multispectral
 working copies, with all metadata files copied to both. The original mission
 folder is left untouched as an archive.
 
-Default: output directories are created as siblings of the input folder:
-    <mission_folder>_RGB/   — RGB JPG images + metadata
-    <mission_folder>_MS/    — Multispectral GeoTIFF images + metadata
+Default output is working_data/ in the same directory as the input folder:
+    working_data/RGB/   — RGB JPG images + metadata
+    working_data/MS/    — Multispectral GeoTIFF images + metadata
 
-With --output-dir: output directories are created inside the specified directory:
-    <output_dir>/RGB/       — RGB JPG images + metadata
-    <output_dir>/MS/        — Multispectral GeoTIFF images + metadata
+Override with --output-dir if needed.
 
 Usage:
-    python split_mission_images.py <mission_folder>
-    python split_mission_images.py <mission_folder> --output-dir ../working_data
-    python split_mission_images.py <mission_folder> --dry-run
+    python split_mission_images.py raw_data/
+    python split_mission_images.py raw_data/ --dry-run
+    python split_mission_images.py raw_data/ --output-dir /path/to/output
 """
 
 import argparse
@@ -67,16 +65,17 @@ def split_mission(mission_dir: Path, dry_run: bool = False,
         print(f"ERROR: Path is not a directory: {mission_dir}", file=sys.stderr)
         sys.exit(1)
 
-    if output_dir is not None:
-        if not output_dir.exists():
-            print(f"ERROR: Output directory does not exist: {output_dir}", file=sys.stderr)
-            sys.exit(1)
-        rgb_dir = output_dir / 'RGB'
-        ms_dir  = output_dir / 'MS'
-    else:
-        parent  = mission_dir.parent
-        rgb_dir = parent / f"{mission_dir.name}_RGB"
-        ms_dir  = parent / f"{mission_dir.name}_MS"
+    if output_dir is None:
+        output_dir = mission_dir.parent / 'working_data'
+
+    if not output_dir.exists():
+        print(f"ERROR: Output directory does not exist: {output_dir}\n"
+              f"       Create it first or specify a different path with --output-dir.",
+              file=sys.stderr)
+        sys.exit(1)
+
+    rgb_dir = output_dir / 'RGB'
+    ms_dir  = output_dir / 'MS'
 
     # Guard against overwriting existing working copies
     for d in (rgb_dir, ms_dir):
@@ -157,7 +156,7 @@ def main():
         "--output-dir",
         type=Path,
         default=None,
-        help="Directory to write RGB/ and MS/ into (default: sibling of input folder)"
+        help="Directory to write RGB/ and MS/ into (default: working_data/ sibling of input)"
     )
     parser.add_argument(
         "--dry-run",
