@@ -6,12 +6,17 @@ Split a DJI Mavic 3M raw mission folder into separate RGB and multispectral
 working copies, with all metadata files copied to both. The original mission
 folder is left untouched as an archive.
 
-Output directories are created as siblings of the input folder:
+Default: output directories are created as siblings of the input folder:
     <mission_folder>_RGB/   — RGB JPG images + metadata
     <mission_folder>_MS/    — Multispectral GeoTIFF images + metadata
 
+With --output-dir: output directories are created inside the specified directory:
+    <output_dir>/RGB/       — RGB JPG images + metadata
+    <output_dir>/MS/        — Multispectral GeoTIFF images + metadata
+
 Usage:
     python split_mission_images.py <mission_folder>
+    python split_mission_images.py <mission_folder> --output-dir ../working_data
     python split_mission_images.py <mission_folder> --dry-run
 """
 
@@ -52,7 +57,8 @@ def classify_file(path: Path) -> str:
 
 # --- Core logic ---
 
-def split_mission(mission_dir: Path, dry_run: bool = False) -> None:
+def split_mission(mission_dir: Path, dry_run: bool = False,
+                  output_dir: Path | None = None) -> None:
     if not mission_dir.exists():
         print(f"ERROR: Mission folder not found: {mission_dir}", file=sys.stderr)
         sys.exit(1)
@@ -61,9 +67,16 @@ def split_mission(mission_dir: Path, dry_run: bool = False) -> None:
         print(f"ERROR: Path is not a directory: {mission_dir}", file=sys.stderr)
         sys.exit(1)
 
-    parent = mission_dir.parent
-    rgb_dir = parent / f"{mission_dir.name}_RGB"
-    ms_dir  = parent / f"{mission_dir.name}_MS"
+    if output_dir is not None:
+        if not output_dir.exists():
+            print(f"ERROR: Output directory does not exist: {output_dir}", file=sys.stderr)
+            sys.exit(1)
+        rgb_dir = output_dir / 'RGB'
+        ms_dir  = output_dir / 'MS'
+    else:
+        parent  = mission_dir.parent
+        rgb_dir = parent / f"{mission_dir.name}_RGB"
+        ms_dir  = parent / f"{mission_dir.name}_MS"
 
     # Guard against overwriting existing working copies
     for d in (rgb_dir, ms_dir):
@@ -141,13 +154,20 @@ def main():
         help="Path to the raw mission folder to split"
     )
     parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="Directory to write RGB/ and MS/ into (default: sibling of input folder)"
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Show what would be copied without copying anything"
     )
     args = parser.parse_args()
 
-    split_mission(args.mission_folder.resolve(), dry_run=args.dry_run)
+    output_dir = args.output_dir.resolve() if args.output_dir else None
+    split_mission(args.mission_folder.resolve(), dry_run=args.dry_run, output_dir=output_dir)
 
 
 if __name__ == "__main__":
