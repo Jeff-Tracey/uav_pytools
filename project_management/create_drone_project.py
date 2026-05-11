@@ -74,6 +74,11 @@ def today_stamp() -> str:
     return date.today().strftime('%Y%m%d')
 
 
+def make_stamp(date_str: str, suffix: str | None) -> str:
+    """Combine date stamp and optional suffix (e.g. '20260506' + 'b' → '20260506b')."""
+    return f"{date_str}{suffix}" if suffix else date_str
+
+
 def visit_dirs(visit_path: Path) -> None:
     """Create subdirectories for a single visit (date-stamped folder)."""
     subdirs = [
@@ -90,6 +95,26 @@ def visit_dirs(visit_path: Path) -> None:
     ]
     for d in subdirs:
         (visit_path / d).mkdir(parents=True, exist_ok=True)
+
+    # Placeholder field notes
+    field_notes = visit_path / 'field_notes.md'
+    if not field_notes.exists():
+        field_notes.write_text(
+            f"# Field Notes\n\n"
+            f"**Visit:** {visit_path.name}\n\n"
+            "## Conditions\n\n"
+            "- Date/time:\n"
+            "- Weather:\n"
+            "- Wind:\n"
+            "- Temperature:\n\n"
+            "## Mission\n\n"
+            "- Drone:\n"
+            "- Mission file:\n"
+            "- AGL:\n"
+            "- Images collected:\n"
+            "- Deviations from plan:\n\n"
+            "## Observations\n\n"
+        )
 
     # Placeholder processing notes
     notes = visit_path / 'processing_notes.md'
@@ -247,6 +272,10 @@ Examples:
   # Add a visit to an existing site
   python create_drone_project.py rancho-mission-canyon ms-mapping --add-visit
 
+  # Multiple visits on the same day (aborted + completed)
+  python create_drone_project.py rancho-mission-canyon ms-mapping --add-visit --date 20260506 --suffix a
+  python create_drone_project.py rancho-mission-canyon ms-mapping --add-visit --date 20260506 --suffix b
+
   # Any mode with a checklist file
   python create_drone_project.py rancho-mission-canyon ms-mapping --checklist ~/checklists/mavic3m.pdf
         """
@@ -260,6 +289,9 @@ Examples:
                         help='Parent directory for the project (default: current directory)')
     parser.add_argument('--date', type=str, default=None,
                         help='Date stamp YYYYMMDD (default: today)')
+    parser.add_argument('--suffix', type=str, default=None,
+                        help='Optional suffix appended to date stamp (e.g. "a", "b") '
+                             'for multiple visits on the same day: 20260506a, 20260506b')
 
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument('--new-site', action='store_true',
@@ -279,12 +311,13 @@ Examples:
 
     site = slugify(args.site)
     mission = slugify(args.mission_type)
-    stamp = args.date if args.date else today_stamp()
+    date_str = args.date if args.date else today_stamp()
 
     if args.date and not re.match(r'^\d{8}$', args.date):
         print(f"ERROR: Date must be in YYYYMMDD format, got: {args.date}", file=sys.stderr)
         sys.exit(1)
 
+    stamp = make_stamp(date_str, args.suffix)
     checklist = args.checklist.resolve() if args.checklist else None
 
     if args.new_site:

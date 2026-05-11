@@ -231,6 +231,7 @@ YYYYMMDD_site-name_mission-type/
 ├── webodm_output/        (orthophoto/, dsm/, dtm/, pointcloud/, model3d/)
 ├── gis/
 ├── deliverables/
+├── field_notes.md
 └── processing_notes.md
 ```
 
@@ -256,6 +257,10 @@ python create_drone_project.py rancho-mission-canyon ms-mapping --new-site
 
 # Add a visit to an existing site
 python create_drone_project.py rancho-mission-canyon ms-mapping --add-visit
+
+# Multiple visits on the same day (e.g. aborted + completed mission)
+python create_drone_project.py rancho-mission-canyon ms-mapping --add-visit --date 20260506 --suffix a
+python create_drone_project.py rancho-mission-canyon ms-mapping --add-visit --date 20260506 --suffix b
 
 # Any mode with a checklist file copied into planning/checklists/
 python create_drone_project.py rancho-mission-canyon ms-mapping --checklist ~/checklists/mavic3m.pdf
