@@ -23,9 +23,9 @@ from pathlib import Path
 
 # --- File classification ---
 
-# RGB: DJI wide-angle camera JPEGs (_W.JPG)
+# RGB: DJI downward/wide-angle camera JPEGs (_W.JPG or _D.JPG depending on model/firmware)
 RGB_SUFFIXES = {'.jpg', '.jpeg'}
-RGB_PATTERNS = ['_W']  # filename must end with one of these before the extension
+RGB_PATTERNS = ['_W', '_D']  # filename must end with one of these before the extension
 
 # Multispectral: GeoTIFF band files (_G, _R, _RE, _NIR)
 MS_SUFFIXES = {'.tif', '.tiff'}
@@ -40,7 +40,7 @@ def classify_file(path: Path) -> str:
     if suffix in RGB_SUFFIXES:
         if any(stem.endswith(p) for p in RGB_PATTERNS):
             return 'rgb'
-        # JPEGs that don't match _W pattern — treat as metadata (e.g. thumbnails)
+        # JPEGs that don't match _W/_D pattern — treat as metadata (e.g. thumbnails)
         return 'metadata'
 
     if suffix in MS_SUFFIXES:
